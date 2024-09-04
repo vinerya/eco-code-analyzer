@@ -1,6 +1,6 @@
 # Eco-Code Analyzer
 
-Eco-Code Analyzer is a Python library that analyzes code for its ecological impact and provides a score based on various factors such as energy efficiency, resource usage, and code optimizations.
+Eco-Code Analyzer is a Python library that analyzes code for its ecological impact, providing developers with insights and recommendations to write more environmentally friendly and efficient code. By optimizing code for energy efficiency and resource usage, we can collectively reduce the carbon footprint of our software.
 
 ## Installation
 
@@ -19,24 +19,21 @@ pip install eco-code-analyzer[dev]
 ## Features
 
 - Analyzes Python code for ecological impact
-- Provides an overall eco-score
-- Breaks down the analysis into categories:
-  - Energy Efficiency
-  - Resource Usage
-  - Code Optimizations
-  - Custom Rules
-- Analyzes entire projects or directories
-- Generates detailed reports
-- Integrates with Git to analyze code history
-- Supports custom configuration
-- Extensible rule system for adding new ecological impact checks
+- Provides an overall eco-score and detailed breakdown
+- Offers improvement suggestions with examples and environmental impact
+- Analyzes entire projects or individual files
+- Estimates potential energy savings and CO2 reduction
+- Calculates project carbon footprint
+- Analyzes Git history to track eco-score over time
+- Generates visualizations of eco-score trends
+- Supports custom configuration and rules
 
 ## Usage
 
 ### As a library
 
 ```python
-from eco_code_analyzer import analyze_code, get_eco_score, get_improvement_suggestions
+from eco_code_analyzer import analyze_code, get_eco_score, get_improvement_suggestions, estimate_energy_savings
 
 code = """
 def example_function():
@@ -49,11 +46,20 @@ def example_function():
 analysis_result = analyze_code(code)
 eco_score = get_eco_score(analysis_result)
 suggestions = get_improvement_suggestions(analysis_result)
+energy_savings = estimate_energy_savings({'overall_score': eco_score})
 
 print(f"Eco-Score: {eco_score}")
 print("Improvement Suggestions:")
 for suggestion in suggestions:
-    print(f"- {suggestion}")
+    print(f"- {suggestion['category']}: {suggestion['suggestion']}")
+    print(f"  Impact: {suggestion['impact']}")
+    print(f"  Example: {suggestion['example']}")
+    print(f"  Environmental Impact: {suggestion['environmental_impact']}")
+
+print("\nEstimated Environmental Impact if Optimized:")
+print(f"Potential Energy Savings: {energy_savings['energy_kwh_per_year']:.2f} kWh/year")
+print(f"Potential CO2 Reduction: {energy_savings['co2_kg_per_year']:.2f} kg CO2/year")
+print(f"Equivalent to planting: {energy_savings['trees_equivalent']:.2f} trees")
 ```
 
 ### As a command-line tool
@@ -76,10 +82,10 @@ Generate a detailed report:
 eco-code-analyzer path/to/your/project/directory -o report.json
 ```
 
-Analyze Git history:
+Analyze Git history and visualize eco-score trend:
 
 ```
-eco-code-analyzer path/to/your/project/directory -g -n 10
+eco-code-analyzer path/to/your/project/directory -g -n 10 --visualize
 ```
 
 Use a custom configuration:
@@ -88,9 +94,41 @@ Use a custom configuration:
 eco-code-analyzer path/to/your/project/directory -c config.json
 ```
 
+## Environmental Impact
+
+The Eco-Code Analyzer helps developers understand the environmental impact of their code by:
+
+1. Estimating energy consumption and CO2 emissions for different code constructs
+2. Providing an overall eco-score that reflects the code's environmental friendliness
+3. Offering specific suggestions to improve code efficiency and reduce energy consumption
+4. Calculating potential energy savings and CO2 reduction if the code is optimized
+5. Tracking the project's eco-score over time to encourage continuous improvement
+
+By using the Eco-Code Analyzer, developers can:
+
+- Reduce the energy consumption of their applications
+- Lower the carbon footprint of their software
+- Improve code performance and efficiency
+- Raise awareness about the environmental impact of code
+
+Remember, every small optimization counts. By collectively improving our code's eco-friendliness, we can make a significant impact on reducing the IT industry's carbon footprint.
+
+## Assumptions and Coefficients
+
+It's important to note that the Eco-Code Analyzer uses various assumptions and coefficients to estimate the environmental impact of code. These are based on general patterns and simplified models, and may not perfectly reflect the actual impact in all scenarios. Some key assumptions include:
+
+1. Energy consumption per CPU cycle
+2. CO2 emissions per kWh of energy used
+3. Impact of different code constructs on energy consumption
+4. Baseline energy consumption for typical projects
+
+We strive to make these assumptions as accurate as possible, but they should be treated as estimates rather than precise measurements. The primary goal is to provide relative comparisons and highlight areas for potential improvement.
+
 ## Configuration
 
-You can customize the behavior of the Eco-Code Analyzer by providing a JSON configuration file. Here's an example:
+You can customize the behavior of the Eco-Code Analyzer by providing a JSON configuration file. This includes the ability to adjust weights for different aspects of the analysis and configure the coefficients used in the calculations.
+
+Here's an example configuration file:
 
 ```json
 {
@@ -103,14 +141,52 @@ You can customize the behavior of the Eco-Code Analyzer by providing a JSON conf
   "thresholds": {
     "eco_score": 0.7,
     "category_score": 0.6
+  },
+  "custom_rules": [
+    {
+      "name": "check_api_call_efficiency",
+      "weight": 0.05
+    }
+  ],
+  "coefficients": {
+    "energy_consumption_per_cpu_cycle": 1e-9,
+    "co2_emissions_per_kwh": 0.5,
+    "base_energy_consumption_per_year": 100,
+    "base_co2_emissions_per_year": 50,
+    "trees_equivalent_factor": 2
   }
 }
 ```
 
+In this configuration:
+
+- `weights`: Adjust the importance of different categories in the overall eco-score.
+- `thresholds`: Set the levels at which warnings or suggestions are triggered.
+- `custom_rules`: Add your own rules or adjust the weight of existing ones.
+- `coefficients`: Configure the key assumptions used in environmental impact calculations:
+  - `energy_consumption_per_cpu_cycle`: Energy consumed per CPU cycle (in joules)
+  - `co2_emissions_per_kwh`: CO2 emitted per kWh of energy (varies by region)
+  - `base_energy_consumption_per_year`: Assumed baseline energy consumption for a typical project (in kWh)
+  - `base_co2_emissions_per_year`: Assumed baseline CO2 emissions for a typical project (in kg)
+  - `trees_equivalent_factor`: Factor used to convert CO2 reduction to equivalent number of trees planted
+
+By adjusting these coefficients, you can tailor the analysis to better match your specific environment or to reflect more recent data on energy consumption and emissions.
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. Here are some ways you can contribute:
+
+1. Add new rules for detecting eco-unfriendly code patterns
+2. Improve the accuracy of energy consumption and CO2 emission estimates
+3. Enhance the visualization capabilities
+4. Add support for more programming languages
+5. Improve documentation and provide usage examples
+6. Refine the assumptions and coefficients used in the analysis
 
 ## License
 
 This project is licensed under the MIT License.
+
+## Let's Build a Greener Future, One Line of Code at a Time!
+
+By using the Eco-Code Analyzer, you're not just improving your code – you're contributing to a more sustainable future for software development. Together, we can make a significant impact on reducing the environmental footprint of the IT industry. Happy eco-coding!
