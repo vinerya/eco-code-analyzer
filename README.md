@@ -27,6 +27,7 @@ pip install eco-code-analyzer[dev]
 - Analyzes Git history to track eco-score over time
 - Generates visualizations of eco-score trends
 - Supports custom configuration and rules
+- Allows users to contribute to tree planting based on analysis results
 
 ## Usage
 
@@ -94,7 +95,13 @@ Use a custom configuration:
 eco-code-analyzer path/to/your/project/directory -c config.json
 ```
 
-## Environmental Impact
+Contribute to tree planting based on analysis results:
+
+```
+eco-code-analyzer path/to/your/project/directory --contribute
+```
+
+## Environmental Impact and Tree Planting
 
 The Eco-Code Analyzer helps developers understand the environmental impact of their code by:
 
@@ -103,6 +110,7 @@ The Eco-Code Analyzer helps developers understand the environmental impact of th
 3. Offering specific suggestions to improve code efficiency and reduce energy consumption
 4. Calculating potential energy savings and CO2 reduction if the code is optimized
 5. Tracking the project's eco-score over time to encourage continuous improvement
+6. Estimating the equivalent number of trees that need to be planted to offset the code's environmental impact
 
 By using the Eco-Code Analyzer, developers can:
 
@@ -110,8 +118,15 @@ By using the Eco-Code Analyzer, developers can:
 - Lower the carbon footprint of their software
 - Improve code performance and efficiency
 - Raise awareness about the environmental impact of code
+- Actively contribute to reforestation efforts based on their code's impact
 
-Remember, every small optimization counts. By collectively improving our code's eco-friendliness, we can make a significant impact on reducing the IT industry's carbon footprint.
+The new tree planting feature allows users to take immediate action to offset their code's environmental impact. When using the `--contribute` flag, the tool will:
+
+1. Calculate the number of trees equivalent to the potential CO2 reduction
+2. Provide an estimated cost for planting these trees
+3. Offer the user an option to contribute to a tree planting organization directly from the command line
+
+Remember, every small optimization and contribution counts. By collectively improving our code's eco-friendliness and supporting reforestation efforts, we can make a significant impact on reducing the IT industry's carbon footprint and promoting a healthier planet.
 
 ## Assumptions and Coefficients
 
@@ -121,6 +136,7 @@ It's important to note that the Eco-Code Analyzer uses various assumptions and c
 2. CO2 emissions per kWh of energy used
 3. Impact of different code constructs on energy consumption
 4. Baseline energy consumption for typical projects
+5. CO2 sequestration potential of trees
 
 We strive to make these assumptions as accurate as possible, but they should be treated as estimates rather than precise measurements. The primary goal is to provide relative comparisons and highlight areas for potential improvement.
 
@@ -182,6 +198,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. Here are s
 4. Add support for more programming languages
 5. Improve documentation and provide usage examples
 6. Refine the assumptions and coefficients used in the analysis
+7. Expand the tree planting contribution feature with more options and partnerships
 
 ## License
 
@@ -189,4 +206,4 @@ This project is licensed under the MIT License.
 
 ## Let's Build a Greener Future, One Line of Code at a Time!
 
-By using the Eco-Code Analyzer, you're not just improving your code – you're contributing to a more sustainable future for software development. Together, we can make a significant impact on reducing the environmental footprint of the IT industry. Happy eco-coding!
+By using the Eco-Code Analyzer, you're not just improving your code – you're contributing to a more sustainable future for software development and our planet. Together, we can make a significant impact on reducing the environmental footprint of the IT industry and supporting global reforestation efforts. Happy eco-coding!
