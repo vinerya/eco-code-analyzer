@@ -11,7 +11,8 @@ def check_loop_efficiency(node: ast.AST) -> float:
 
 def check_string_concatenation(node: ast.AST) -> float:
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        if isinstance(node.left, ast.Str) and isinstance(node.right, ast.Str):
+        if (isinstance(node.left, ast.Constant) and isinstance(node.left.value, str) and
+                isinstance(node.right, ast.Constant) and isinstance(node.right.value, str)):
             return 0.5  # Penalize string concatenation with + operator
     return 1.0
 

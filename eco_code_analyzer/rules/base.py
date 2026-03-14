@@ -76,3 +76,8 @@ class RuleRegistry:
     def get_categories(cls) -> List[str]:
         """Get all rule categories."""
         return list(cls._rules.keys())
+
+    @classmethod
+    def reset(cls):
+        """Reset the registry. Useful for testing."""
+        cls._rules = {}

@@ -16,5 +16,6 @@
     "base_energy_consumption_per_year": 100,
     "base_co2_emissions_per_year": 50,
     "trees_equivalent_factor": 2
-  }
+  },
+  "disabled_rules": []
 }

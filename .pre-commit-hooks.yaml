@@ -1,0 +1,7 @@
+- id: eco-code-analyzer
+  name: Eco-Code Analyzer
+  description: Analyze Python code for ecological impact and energy efficiency
+  entry: eco-code-analyzer
+  language: python
+  types: [python]
+  args: ["--threshold", "0.3"]

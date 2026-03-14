@@ -1,13 +1,42 @@
 import ast
 import os
+import re
 import json
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Set, Tuple, Any
 from .rules import Rule, RuleRegistry, AnalysisContext
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def _get_suppressed_rules(code: str) -> Dict[int, Set[str]]:
+    """Parse # noqa: eco-RULENAME comments from code.
+
+    Returns a dict mapping line numbers to sets of suppressed rule names.
+    A bare '# noqa: eco' suppresses all eco rules on that line.
+    """
+    suppressions: Dict[int, Set[str]] = {}
+    for lineno, line in enumerate(code.splitlines(), 1):
+        match = re.search(r'#\s*noqa:\s*eco(?:-(\S+))?', line)
+        if match:
+            rule_name = match.group(1)
+            if rule_name:
+                suppressions.setdefault(lineno, set()).add(rule_name)
+            else:
+                # bare "# noqa: eco" suppresses all rules
+                suppressions[lineno] = {'__all__'}
+    return suppressions
+
+
+def _is_suppressed(node: ast.AST, rule_name: str, suppressions: Dict[int, Set[str]]) -> bool:
+    """Check if a rule is suppressed for the given node via noqa comment."""
+    if not suppressions:
+        return False
+    lineno = getattr(node, 'lineno', None)
+    if lineno is None:
+        return False
+    suppressed = suppressions.get(lineno, set())
+    return '__all__' in suppressed or rule_name in suppressed
 
 def analyze_code(code: str, file_path: str = None, config: Dict[str, Any] = None) -> Dict[str, float]:
     """
@@ -39,16 +68,24 @@ def analyze_code(code: str, file_path: str = None, config: Dict[str, Any] = None
     if file_path:
         context.set_file_path(file_path)
 
+    # Parse rule suppression comments
+    suppressions = _get_suppressed_rules(code)
+
+    # Get disabled rules from config
+    disabled_rules = set()
+    if config and 'disabled_rules' in config:
+        disabled_rules = set(config['disabled_rules'])
+
     # Create rule instances
     rule_instances = RuleRegistry.create_rule_instances(config or {})
 
     # Analyze code with each category of rules
     result = {
-        'energy_efficiency': analyze_category(tree, context, rule_instances.get('energy_efficiency', {})),
-        'resource_usage': analyze_category(tree, context, rule_instances.get('memory_usage', {})),
-        'io_efficiency': analyze_category(tree, context, rule_instances.get('io_efficiency', {})),
-        'algorithm_efficiency': analyze_category(tree, context, rule_instances.get('algorithm_efficiency', {})),
-        'custom_rules': analyze_custom_rules(tree, context, rule_instances),
+        'energy_efficiency': analyze_category(tree, context, rule_instances.get('energy_efficiency', {}), suppressions, disabled_rules),
+        'resource_usage': analyze_category(tree, context, rule_instances.get('memory_usage', {}), suppressions, disabled_rules),
+        'io_efficiency': analyze_category(tree, context, rule_instances.get('io_efficiency', {}), suppressions, disabled_rules),
+        'algorithm_efficiency': analyze_category(tree, context, rule_instances.get('algorithm_efficiency', {}), suppressions, disabled_rules),
+        'custom_rules': analyze_custom_rules(tree, context, rule_instances, suppressions, disabled_rules),
     }
 
     return result
@@ -113,13 +150,8 @@ def get_eco_score(analysis_result: Dict[str, float]) -> float:
         'custom_rules': 0.1,
     }
 
-    # Ensure all categories exist in the result
-    for key in weights:
-        if key not in analysis_result:
-            analysis_result[key] = 1.0
-
-    score = sum(analysis_result[key] * weights[key] for key in weights)
-    return round(score, 2)
+    score = sum(analysis_result.get(key, 1.0) * weights[key] for key in weights)
+    return round(max(0.0, min(1.0, score)), 2)
 
 def get_project_eco_score(project_results: Dict[str, Dict[str, float]]) -> float:
     """
@@ -127,7 +159,9 @@ def get_project_eco_score(project_results: Dict[str, Dict[str, float]]) -> float
     """
     return project_results['overall_score']
 
-def analyze_category(tree: ast.AST, context: AnalysisContext, rules: Dict[str, Rule]) -> float:
+def analyze_category(tree: ast.AST, context: AnalysisContext, rules: Dict[str, Rule],
+                     suppressions: Dict[int, Set[str]] = None,
+                     disabled_rules: Set[str] = None) -> float:
     """
     Analyze code with a specific category of rules.
 
@@ -135,6 +169,8 @@ def analyze_category(tree: ast.AST, context: AnalysisContext, rules: Dict[str, R
         tree: AST of the code
         context: Analysis context
         rules: Dictionary of rules to apply
+        suppressions: Per-line rule suppressions from noqa comments
+        disabled_rules: Globally disabled rule names from config
 
     Returns:
         Category score between 0 and 1
@@ -142,17 +178,26 @@ def analyze_category(tree: ast.AST, context: AnalysisContext, rules: Dict[str, R
     if not rules:
         return 1.0
 
+    suppressions = suppressions or {}
+    disabled_rules = disabled_rules or set()
+
     score = 1.0
     for node in ast.walk(tree):
         for rule in rules.values():
+            if rule.metadata.name in disabled_rules:
+                continue
+            if _is_suppressed(node, rule.metadata.name, suppressions):
+                continue
             try:
                 score *= rule.check(node, context)
             except Exception as e:
                 logger.error(f"Error applying rule {rule.metadata.name}: {e}")
 
-    return round(score, 2)
+    return round(max(0.0, min(1.0, score)), 2)
 
-def analyze_custom_rules(tree: ast.AST, context: AnalysisContext, rule_instances: Dict[str, Dict[str, Rule]]) -> float:
+def analyze_custom_rules(tree: ast.AST, context: AnalysisContext, rule_instances: Dict[str, Dict[str, Rule]],
+                         suppressions: Dict[int, Set[str]] = None,
+                         disabled_rules: Set[str] = None) -> float:
     """
     Apply custom rules that don't fit into standard categories.
 
@@ -160,6 +205,8 @@ def analyze_custom_rules(tree: ast.AST, context: AnalysisContext, rule_instances
         tree: AST of the code
         context: Analysis context
         rule_instances: Dictionary of rule instances by category
+        suppressions: Per-line rule suppressions from noqa comments
+        disabled_rules: Globally disabled rule names from config
 
     Returns:
         Custom rules score between 0 and 1
@@ -168,15 +215,22 @@ def analyze_custom_rules(tree: ast.AST, context: AnalysisContext, rule_instances
     if not custom_rules:
         return 1.0
 
+    suppressions = suppressions or {}
+    disabled_rules = disabled_rules or set()
+
     score = 1.0
     for node in ast.walk(tree):
         for rule in custom_rules.values():
+            if rule.metadata.name in disabled_rules:
+                continue
+            if _is_suppressed(node, rule.metadata.name, suppressions):
+                continue
             try:
                 score *= rule.check(node, context)
             except Exception as e:
                 logger.error(f"Error applying custom rule {rule.metadata.name}: {e}")
 
-    return round(score, 2)
+    return round(max(0.0, min(1.0, score)), 2)
 
 def get_improvement_suggestions(analysis_result: Dict[str, float], config: Dict[str, Any] = None) -> List[Dict[str, str]]:
     """
@@ -198,25 +252,18 @@ def get_improvement_suggestions(analysis_result: Dict[str, float], config: Dict[
     # Create rule instances to get their suggestions
     rule_instances = RuleRegistry.create_rule_instances(config or {})
 
-    # Get suggestions for each category
-    categories = {
-        'energy_efficiency': 'Energy Efficiency',
-        'resource_usage': 'Resource Usage',
-        'io_efficiency': 'I/O Efficiency',
-        'algorithm_efficiency': 'Algorithm Efficiency',
-        'custom_rules': 'Custom Rules'
+    # Map result category keys to rule registry category names
+    category_to_rule_category = {
+        'energy_efficiency': 'energy_efficiency',
+        'resource_usage': 'memory_usage',
+        'io_efficiency': 'io_efficiency',
+        'algorithm_efficiency': 'algorithm_efficiency',
+        'custom_rules': 'custom_rules',
     }
 
-    for category_key, category_name in categories.items():
+    for category_key, rule_category in category_to_rule_category.items():
         if category_key in analysis_result and analysis_result[category_key] < threshold:
-            # Get rules for this category
-            category_rules = {}
-            for cat, rules in rule_instances.items():
-                if cat.lower().replace('_', '') == category_key.lower().replace('_', ''):
-                    category_rules = rules
-                    break
-
-            # Add suggestions from each rule
+            category_rules = rule_instances.get(rule_category, {})
             for rule in category_rules.values():
                 suggestions.append(rule.get_suggestion())
 
@@ -232,45 +279,42 @@ def get_detailed_analysis(analysis_result: Dict[str, float]) -> str:
     Returns:
         Formatted string with detailed analysis
     """
+    categories = [
+        ('energy_efficiency', 'Energy Efficiency', [
+            "Evaluates the use of efficient loop constructs, list comprehensions, and generator expressions.",
+            "Checks for lazy evaluation techniques and redundant computations.",
+            "Analyzes loop nesting and complexity.",
+        ]),
+        ('resource_usage', 'Resource Usage', [
+            "Analyzes memory usage and resource management practices.",
+            "Evaluates the use of context managers and efficient data structures.",
+            "Checks for potential memory leaks and global variable usage.",
+        ]),
+        ('io_efficiency', 'I/O Efficiency', [
+            "Examines file, network, and database operations.",
+            "Checks for efficient use of caching and bulk operations.",
+            "Identifies potential N+1 query problems and repeated I/O operations.",
+        ]),
+        ('algorithm_efficiency', 'Algorithm Efficiency', [
+            "Analyzes time and space complexity of algorithms.",
+            "Evaluates data structure selection for operations.",
+            "Checks for optimized recursive algorithms and appropriate algorithm selection.",
+        ]),
+        ('custom_rules', 'Custom Rules', [
+            "Applies user-defined custom rules for project-specific optimizations.",
+        ]),
+    ]
+
     details = []
-
-    # Energy Efficiency
-    details.append(f"Energy Efficiency: {analysis_result.get('energy_efficiency', 0):.2f}")
-    details.append("- Evaluates the use of efficient loop constructs, list comprehensions, and generator expressions.")
-    details.append("- Checks for lazy evaluation techniques and redundant computations.")
-    details.append("- Analyzes loop nesting and complexity.")
-    impact = 'High' if analysis_result.get('energy_efficiency', 0) >= 0.8 else 'Medium' if analysis_result.get('energy_efficiency', 0) >= 0.6 else 'Low'
-    details.append(f"Environmental Impact: {impact}")
-
-    # Resource Usage
-    details.append(f"\nResource Usage: {analysis_result.get('resource_usage', 0):.2f}")
-    details.append("- Analyzes memory usage and resource management practices.")
-    details.append("- Evaluates the use of context managers and efficient data structures.")
-    details.append("- Checks for potential memory leaks and global variable usage.")
-    impact = 'High' if analysis_result.get('resource_usage', 0) >= 0.8 else 'Medium' if analysis_result.get('resource_usage', 0) >= 0.6 else 'Low'
-    details.append(f"Environmental Impact: {impact}")
-
-    # I/O Efficiency
-    details.append(f"\nI/O Efficiency: {analysis_result.get('io_efficiency', 0):.2f}")
-    details.append("- Examines file, network, and database operations.")
-    details.append("- Checks for efficient use of caching and bulk operations.")
-    details.append("- Identifies potential N+1 query problems and repeated I/O operations.")
-    impact = 'High' if analysis_result.get('io_efficiency', 0) >= 0.8 else 'Medium' if analysis_result.get('io_efficiency', 0) >= 0.6 else 'Low'
-    details.append(f"Environmental Impact: {impact}")
-
-    # Algorithm Efficiency
-    details.append(f"\nAlgorithm Efficiency: {analysis_result.get('algorithm_efficiency', 0):.2f}")
-    details.append("- Analyzes time and space complexity of algorithms.")
-    details.append("- Evaluates data structure selection for operations.")
-    details.append("- Checks for optimized recursive algorithms and appropriate algorithm selection.")
-    impact = 'High' if analysis_result.get('algorithm_efficiency', 0) >= 0.8 else 'Medium' if analysis_result.get('algorithm_efficiency', 0) >= 0.6 else 'Low'
-    details.append(f"Environmental Impact: {impact}")
-
-    # Custom Rules
-    details.append(f"\nCustom Rules: {analysis_result.get('custom_rules', 0):.2f}")
-    details.append("- Applies user-defined custom rules for project-specific optimizations.")
-    impact = 'High' if analysis_result.get('custom_rules', 0) >= 0.8 else 'Medium' if analysis_result.get('custom_rules', 0) >= 0.6 else 'Low'
-    details.append(f"Environmental Impact: {impact}")
+    for key, name, descriptions in categories:
+        score = analysis_result.get(key, 0)
+        if details:
+            details.append("")
+        details.append(f"{name}: {score:.2f}")
+        for desc in descriptions:
+            details.append(f"- {desc}")
+        impact = 'High' if score >= 0.8 else 'Medium' if score >= 0.6 else 'Low'
+        details.append(f"Environmental Impact: {impact}")
 
     return "\n".join(details)
 
@@ -278,11 +322,23 @@ def generate_report(project_results: Dict[str, Dict[str, float]], output_file: s
     """
     Generate a detailed report of the project analysis.
     """
+    # Aggregate category scores across all files for suggestions
+    aggregated = {}
+    file_count = 0
+    for file, result in project_results.items():
+        if file == 'overall_score' or not isinstance(result, dict):
+            continue
+        file_count += 1
+        for key, value in result.items():
+            aggregated[key] = aggregated.get(key, 0.0) + value
+    if file_count > 0:
+        aggregated = {k: v / file_count for k, v in aggregated.items()}
+
     report = {
         'project_score': get_project_eco_score(project_results),
-        'file_scores': {file: get_eco_score(result) for file, result in project_results.items() if file != 'overall_score'},
+        'file_scores': {file: get_eco_score(result) for file, result in project_results.items() if file != 'overall_score' and isinstance(result, dict)},
         'detailed_results': project_results,
-        'improvement_suggestions': get_improvement_suggestions(project_results['overall_score']),
+        'improvement_suggestions': get_improvement_suggestions(aggregated),
         'estimated_energy_savings': estimate_energy_savings(project_results),
     }
 
@@ -299,25 +355,54 @@ def load_config(config_file: str) -> Dict:
 def analyze_with_git_history(repo_path: str, num_commits: int = 5) -> List[Tuple[str, float]]:
     """
     Analyze the eco-score of the project over the last n commits.
+    Uses git show to read files without checking out commits (non-destructive).
     """
     try:
         from git import Repo
     except ImportError:
-        print("GitPython is not installed. Please install it to use this feature.")
+        logger.error("GitPython is not installed. Please install it to use this feature.")
         return []
 
     repo = Repo(repo_path)
-    commits = list(repo.iter_commits('master', max_count=num_commits))
+
+    # Detect the default branch
+    try:
+        default_branch = repo.active_branch.name
+    except TypeError:
+        default_branch = 'main'
+
+    commits = list(repo.iter_commits(default_branch, max_count=num_commits))
 
     scores = []
     for commit in commits:
-        repo.git.checkout(commit.hexsha)
-        project_results = analyze_project(repo_path)
-        score = get_project_eco_score(project_results)
-        scores.append((commit.hexsha[:7], score))
+        try:
+            # Read Python files from the commit tree without checkout
+            commit_score = _analyze_commit_tree(commit.tree, repo_path)
+            scores.append((commit.hexsha[:7], commit_score))
+        except Exception as e:
+            logger.error(f"Error analyzing commit {commit.hexsha[:7]}: {e}")
 
-    repo.git.checkout('master')
     return scores
+
+
+def _analyze_commit_tree(tree, base_path: str) -> float:
+    """Analyze all Python files in a git tree object without checkout."""
+    total_lines = 0
+    total_score = 0.0
+
+    for blob in tree.traverse():
+        if blob.type != 'blob' or not blob.path.endswith('.py'):
+            continue
+        try:
+            code = blob.data_stream.read().decode('utf-8')
+            file_results = analyze_code(code, blob.path)
+            lines = len(code.splitlines())
+            total_lines += lines
+            total_score += get_eco_score(file_results) * lines
+        except Exception:
+            continue
+
+    return round(total_score / total_lines, 2) if total_lines > 0 else 0.0
 
 def estimate_energy_savings(project_results: Dict[str, Dict[str, float]]) -> Dict[str, float]:
     """

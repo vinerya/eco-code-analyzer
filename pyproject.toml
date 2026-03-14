@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eco-code-analyzer"
+version = "0.5.0"
+description = "A Python library that analyzes code for ecological impact and provides optimization suggestions"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Moudather Chelbi", email = "moudather.chelbi@gmail.com"},
+]
+keywords = [
+    "code analysis",
+    "environmental impact",
+    "energy efficiency",
+    "eco-friendly coding",
+    "static analysis",
+    "green computing",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "gitpython>=3.1",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "flake8>=5.0",
+    "black>=22.0",
+    "mypy>=0.990",
+]
+
+[project.scripts]
+eco-code-analyzer = "eco_code_analyzer.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/vinerya/eco-code-analyzer"
+Repository = "https://github.com/vinerya/eco-code-analyzer"
+Issues = "https://github.com/vinerya/eco-code-analyzer/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
